@@ -1,0 +1,58 @@
+name: yammopatinerapp
+description: "Draw Painter — a Flutter freehand drawing app with GetX state management."
+publish_to: 'none'
+version: 1.0.0+2
+
+environment:
+  sdk: ^3.11.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # State management, DI, routing, snackbars.
+  get: ^4.6.5
+
+  # Used to write the rendered PNG to a temp file before handing it off to
+  # the system share sheet via share_plus.
+  path_provider: ^2.0.11
+
+  # iOS / Android system share sheet — replaces direct gallery writes so we
+  # don't need to manage Photos / storage permissions ourselves. The user
+  # picks Save Image / Save to Files / Messages / etc., and the OS handles
+  # whatever permission that destination needs.
+  share_plus: ^10.0.0
+
+  # SVG parsing for asset-backed coloring-book templates. `xml` walks the
+  # document; `path_drawing` converts SVG path `d=` strings into Flutter Paths.
+  xml: ^6.5.0
+  path_drawing: ^1.0.1
+
+  # Renders the source SVG faithfully as the line-art layer (the path-based
+  # importer is used only for stroke hit-testing now). BlendMode.multiply at
+  # paint time lets user colors show through the SVG's white backgrounds.
+  flutter_svg: ^2.0.10
+
+  # HSV color picker sheet behind the palette's "+" tile.
+  flutter_colorpicker: ^1.1.0
+
+  # System file-picker — used to import a user-supplied SVG as a coloring
+  # template (Upload tile in the picker bottom sheet).
+  file_picker: ^8.0.0+1
+
+  # Used by ColoringPageLoader.loadFromUrl. MockClient (from http/testing.dart)
+  # ships with the package — no separate test dep needed.
+  http: ^1.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/templates/
