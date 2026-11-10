@@ -5,9 +5,9 @@ import 'dart:ui';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:yammopatinerapp/coloring/coloring_page.dart';
-import 'package:yammopatinerapp/coloring/coloring_page_manifest.dart';
-import 'package:yammopatinerapp/coloring/parsing/coloring_page_loader.dart';
+import 'package:pandapainterapp/coloring/coloring_page.dart';
+import 'package:pandapainterapp/coloring/coloring_page_manifest.dart';
+import 'package:pandapainterapp/coloring/parsing/coloring_page_loader.dart';
 
 void main() {
   group('loadFromManifest', () {

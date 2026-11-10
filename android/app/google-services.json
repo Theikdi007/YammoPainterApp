@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "493542677730",
+    "project_id": "painter-50f64",
+    "storage_bucket": "painter-50f64.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:493542677730:android:88fc6c3a3f61737ef852bb",
+        "android_client_info": {
+          "package_name": "com.theikdinyunt.pandapainterapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBOrk8_HxTofhG2DUF6gZ_cT0BHtKnPndI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -2,9 +2,9 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:yammopatinerapp/coloring/coloring_page.dart';
-import 'package:yammopatinerapp/coloring/parsing/coloring_page_loader.dart';
-import 'package:yammopatinerapp/coloring/parsing/svg_importer.dart';
+import 'package:pandapainterapp/coloring/coloring_page.dart';
+import 'package:pandapainterapp/coloring/parsing/coloring_page_loader.dart';
+import 'package:pandapainterapp/coloring/parsing/svg_importer.dart';
 
 void main() {
   group('importRawSvg', () {

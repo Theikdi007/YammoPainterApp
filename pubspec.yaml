@@ -1,7 +1,7 @@
-name: yammopatinerapp
-description: "Draw Painter — a Flutter freehand drawing app with GetX state management."
+name: pandapainterapp
+description: "Panda Paint — a Flutter freehand drawing app with GetX state management."
 publish_to: 'none'
-version: 1.0.0+2
+version: 1.0.0+6
 
 environment:
   sdk: ^3.11.4
@@ -33,18 +33,51 @@ dependencies:
   # Renders the source SVG faithfully as the line-art layer (the path-based
   # importer is used only for stroke hit-testing now). BlendMode.multiply at
   # paint time lets user colors show through the SVG's white backgrounds.
-  flutter_svg: ^2.0.10
+  flutter_svg: ^2.3.0
 
   # HSV color picker sheet behind the palette's "+" tile.
   flutter_colorpicker: ^1.1.0
 
   # System file-picker — used to import a user-supplied SVG as a coloring
   # template (Upload tile in the picker bottom sheet).
-  file_picker: ^8.0.0+1
+  file_picker: ^11.0.2
 
   # Used by ColoringPageLoader.loadFromUrl. MockClient (from http/testing.dart)
   # ships with the package — no separate test dep needed.
   http: ^1.2.0
+
+  # AR Drawing dependencies
+  camera: ^0.12.0+1
+  image_picker: ^1.2.2
+
+  # Authentication + backend (email/password and Google sign-in run through
+  # Supabase Auth). Initialized in main() only when SUPABASE_* env keys exist;
+  # the app still builds/runs with no backend (see AuthService.isConfigured).
+  supabase_flutter: ^2.8.0
+
+  # Native Google account picker for "Sign in with Gmail". The returned ID/
+  # access tokens are exchanged for a Supabase session via signInWithIdToken.
+  # Pinned to 6.x for the stable, widely-documented API.
+  google_sign_in: ^6.2.1
+
+  # Push notifications (FCM). firebase_core boots the SDK from the native config
+  # files (google-services.json / GoogleService-Info.plist); firebase_messaging
+  # registers the device token and delivers messages in all three app states
+  # (foreground / background / terminated). flutter_local_notifications renders
+  # foreground messages, which FCM does not display automatically.
+  firebase_core: ^3.6.0
+  firebase_messaging: ^15.1.3
+  flutter_local_notifications: ^18.0.1
+
+  # Native store-review prompt for the "Love it 😍" path of the feedback gate
+  # (App Store / Play in-app review). Degrades to a thank-you snackbar when the
+  # store review isn't available (unpublished build / Simulator) — see
+  # lib/widgets/feedback_prompter.dart.
+  in_app_review: ^2.0.12
+
+  # Google AdMob — banner ads displayed above the bottom nav on the home screen.
+  # Uses Google's test ad unit IDs by default.
+  google_mobile_ads: ^5.2.0
 
 dev_dependencies:
   flutter_test:
@@ -52,7 +85,26 @@ dev_dependencies:
 
   flutter_lints: ^6.0.0
 
+  # Generates the iOS + Android launcher icons from assets/icon/*. Re-run after
+  # changing the source art with: dart run flutter_launcher_icons
+  flutter_launcher_icons: ^0.14.0
+
 flutter:
   uses-material-design: true
+  # Portal images (AR presets, painting templates, puzzle photos) are served
+  # from the Supabase `svg_assets` table at runtime. The only bundled image is
+  # the default AR tracing overlay — a fallback so AR Drawing is usable before/
+  # without any portal photos.
   assets:
-    - assets/templates/
+    - assets/icon/newapp_icon.png
+    - assets/ar/
+
+# App launcher icon: brand-gradient tile with a white artist's-palette glyph.
+# iOS uses the flat square (it rounds corners itself); Android gets an adaptive
+# icon (gradient background + palette foreground in the safe zone).
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/newapp_icon.png"
+  remove_alpha_ios: true
+  min_sdk_android: 21

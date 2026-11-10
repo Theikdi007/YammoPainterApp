@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Bundled default AR tracing overlay. Shown by ArOverlayImage when the user
+     opens AR Drawing without picking a portal photo yet, so the tracing surface
+     is never blank. Pure line-art (no fill) so it reads well at any opacity. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" stroke="#1a1a1a" stroke-width="4" stroke-linejoin="round" stroke-linecap="round">
+  <!-- petals -->
+  <circle cx="100" cy="58" r="27"/>
+  <circle cx="142" cy="88" r="27"/>
+  <circle cx="126" cy="138" r="27"/>
+  <circle cx="74" cy="138" r="27"/>
+  <circle cx="58" cy="88" r="27"/>
+  <!-- flower center -->
+  <circle cx="100" cy="98" r="17"/>
+  <!-- stem -->
+  <path d="M100 115 C100 148, 100 172, 100 194"/>
+  <!-- leaves -->
+  <path d="M100 156 C82 154, 70 140, 71 124"/>
+  <path d="M100 170 C120 168, 131 154, 129 136"/>
+</svg>

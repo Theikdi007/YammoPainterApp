@@ -1,8 +1,8 @@
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:yammopatinerapp/coloring/coloring_page.dart';
-import 'package:yammopatinerapp/coloring/parsing/svg_path_parser.dart';
+import 'package:pandapainterapp/coloring/coloring_page.dart';
+import 'package:pandapainterapp/coloring/parsing/svg_path_parser.dart';
 
 void main() {
   group('parsePath — happy path', () {

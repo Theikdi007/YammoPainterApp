@@ -95,6 +95,44 @@ class ColoringPageTemplate extends DrawingTemplate {
     }
   }
 
+  /// Faint tracing underlay for PaintMode.draw. Renders the same line art as
+  /// [paintPreview] but inside an alpha layer so the whole picture drops to
+  /// ~25% opacity — enough to trace over, light enough that user strokes
+  /// clearly sit on top.
+  @override
+  void paintGuide(Canvas canvas, Size size) {
+    final pictureInfo = page.pictureInfo;
+    if (pictureInfo != null) {
+      final svgSize = pictureInfo.size;
+      if (svgSize.isEmpty || size.isEmpty) return;
+      final scale = math.min(
+        size.width / svgSize.width,
+        size.height / svgSize.height,
+      );
+      final rect = Rect.fromLTWH(
+        (size.width - svgSize.width * scale) / 2,
+        (size.height - svgSize.height * scale) / 2,
+        svgSize.width * scale,
+        svgSize.height * scale,
+      );
+      // Layer paint alpha modulates everything drawn in the layer on restore.
+      canvas.saveLayer(rect, Paint()..color = const Color(0x40FFFFFF));
+      _paintPicture(canvas, size, pictureInfo, blendMultiply: false);
+      canvas.restore();
+      return;
+    }
+    final guidePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0
+      ..strokeJoin = StrokeJoin.round
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0x40202020)
+      ..isAntiAlias = true;
+    for (final path in _fit(size).outline) {
+      canvas.drawPath(path, guidePaint);
+    }
+  }
+
   void _paintPicture(
     Canvas canvas,
     Size size,

@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 
 import '../models/drawing_template.dart';
@@ -19,16 +21,37 @@ import '../models/stroke.dart';
 /// 5. **SVG outline** drawn on top of the layer (via `paintOutline`,
 ///    multiply-blended in `ColoringPageTemplate`) — the line art always
 ///    wins visually.
+///
+/// [paintMode] selects between the two template behaviors:
+/// - `color` (default): strokes clip to the picture's regions and the line
+///   art is drawn dark on top — the coloring-book experience.
+/// - `draw`: strokes aren't clipped and, when a template is set, the artwork
+///   renders faintly *underneath* the strokes as a tracing guide.
 class Painter extends CustomPainter {
   Painter({
     required this.actions,
     required this.currentStroke,
     this.template,
+    this.paintMode = PaintMode.color,
+    this.backgroundImage,
+    this.selectionRect,
   });
 
   final List<DrawAction> actions;
   final Stroke? currentStroke;
   final DrawingTemplate? template;
+  final PaintMode paintMode;
+
+  /// A raster image painted as the bottom of the editable stroke layer — used to
+  /// "repaint" a previously saved drawing: the user draws on top of it, can
+  /// erase into it, and the export includes it. Null in normal free-draw /
+  /// coloring sessions.
+  final ui.Image? backgroundImage;
+
+  /// Canvas-space bounds of the currently selected element — drawn as a
+  /// highlight box. Null when nothing is selected. Not part of the exported PNG
+  /// (the controller clears the selection before rendering for save).
+  final Rect? selectionRect;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -36,7 +59,16 @@ class Painter extends CustomPainter {
     final scale = fit?.scale ?? 1.0;
     final offset = fit?.offset ?? Offset.zero;
 
+    // Regions are needed to clip any coloring stroke (those carry
+    // `clipToRegions`); compute them whenever a picture is active. Whether a
+    // given stroke actually clips is decided per-stroke in `_paintStroke`.
     final regions = template?.buildRegions(size) ?? const <Path>[];
+
+    // Draw mode: faint tracing guide goes *under* the stroke layer so freehand
+    // strokes sit clearly on top of the line art.
+    if (paintMode == PaintMode.draw) {
+      template?.paintGuide(canvas, size);
+    }
 
     // Actions go into one isolated layer so BlendMode.clear used by the
     // eraser only affects user paint within this layer. Without it,
@@ -45,12 +77,47 @@ class Painter extends CustomPainter {
     final layerRect = Offset.zero & size;
     canvas.saveLayer(layerRect, Paint());
 
+    // Repaint backdrop: the saved artwork, fitted (contain) and centred. Drawn
+    // *inside* the stroke layer and before the actions so it's editable — the
+    // eraser (BlendMode.clear) can rub it out (revealing the white canvas) and
+    // undo restores it, just like any painted content. Erasing past its edges
+    // still only clears within this layer, never punching the canvas to nothing.
+    final bg = backgroundImage;
+    if (bg != null) {
+      final srcW = bg.width.toDouble();
+      final srcH = bg.height.toDouble();
+      final bgScale =
+          (size.width / srcW).clamp(0.0, size.height / srcH).toDouble();
+      final w = srcW * bgScale;
+      final h = srcH * bgScale;
+      final dst = Rect.fromLTWH(
+        (size.width - w) / 2,
+        (size.height - h) / 2,
+        w,
+        h,
+      );
+      canvas.drawImageRect(
+        bg,
+        Rect.fromLTWH(0, 0, srcW, srcH),
+        dst,
+        Paint()..filterQuality = FilterQuality.high,
+      );
+    }
+
     for (final action in actions) {
       if (action is BucketFill) {
         final region = action.isPictureSpace
             ? _transformPath(action.region, scale, offset)
             : action.region;
         canvas.drawPath(region, Paint()..color = action.color);
+      } else if (action is RasterFill) {
+        // Drawn 1:1, shifted by the Move-tool offset — see RasterFill docs.
+        canvas.drawImageRect(
+          action.image,
+          Offset.zero & action.size,
+          action.offset & action.size,
+          Paint(),
+        );
       } else if (action is Stroke) {
         _paintStroke(canvas, action, regions, scale, offset);
       }
@@ -63,9 +130,43 @@ class Painter extends CustomPainter {
 
     canvas.restore();
 
-    // SVG outline on top (kept outside the layer so erasing user paint
-    // never wipes the line art).
-    template?.paintOutline(canvas, size);
+    // Color mode: SVG outline on top (kept outside the layer so erasing user
+    // paint never wipes the line art). Draw mode already drew the guide below.
+    if (paintMode == PaintMode.color) {
+      template?.paintOutline(canvas, size);
+    }
+
+    // Selection highlight on top of everything (the brand primary box).
+    final sel = selectionRect;
+    if (sel != null) {
+      const selColor = Color(0xFF6C5CE7);
+      final box = RRect.fromRectAndRadius(
+        sel.inflate(6),
+        const Radius.circular(8),
+      );
+      canvas.drawRRect(
+        box,
+        Paint()
+          ..style = PaintingStyle.fill
+          ..color = selColor.withValues(alpha: 0.08),
+      );
+      canvas.drawRRect(
+        box,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = selColor,
+      );
+      // Small corner handles.
+      for (final c in [
+        box.outerRect.topLeft,
+        box.outerRect.topRight,
+        box.outerRect.bottomLeft,
+        box.outerRect.bottomRight,
+      ]) {
+        canvas.drawCircle(c, 4, Paint()..color = selColor);
+      }
+    }
   }
 
   void _paintStroke(
@@ -94,13 +195,21 @@ class Painter extends CustomPainter {
       isEraser: stroke.tool == DrawingTool.eraser,
     );
 
-    // Brush strokes (not eraser) are clipped to the region containing their
+    // Coloring strokes (not eraser) are clipped to the region containing their
     // first point, so colors stay inside the shape boundaries the artwork
     // implies. Eraser is unclipped — the user expects to erase across
-    // boundaries. If no region matches the start, drop the stroke (keeps
-    // free-flow paint from escaping the picture frame).
-    Path? clipPath;
-    if (stroke.tool != DrawingTool.eraser && regions.isNotEmpty) {
+    // boundaries. Free-draw / tracing strokes (`clipToRegions == false`) also
+    // flow freely. A coloring stroke that *starts outside every region* (e.g.
+    // on the blank background) is drawn unclipped rather than dropped, so the
+    // user can draw anywhere on the page without switching modes.
+    // A precomputed clip (outline-only coloring pages, flood-derived) wins; it's
+    // already in canvas-space. Otherwise fall back to the active SVG's vector
+    // regions (region SVGs), clipping to the one containing the stroke's start.
+    final isColoringStroke =
+        stroke.clipToRegions && stroke.tool != DrawingTool.eraser;
+    Path? clipPath =
+        stroke.tool != DrawingTool.eraser ? stroke.clipPath : null;
+    if (clipPath == null && isColoringStroke && regions.isNotEmpty) {
       double? bestArea;
       for (final region in regions) {
         if (!region.contains(canvasPoints.first)) continue;
@@ -111,14 +220,45 @@ class Painter extends CustomPainter {
           clipPath = region;
         }
       }
+      // Stay inside the lines: a coloring stroke whose first point landed
+      // outside every region (e.g. begun on the blank background around the
+      // artwork) has no shape to confine it. Drop it rather than drawing it
+      // unclipped across the whole picture. Eraser and free-draw strokes
+      // (clipToRegions == false) are unaffected and keep flowing freely.
       if (clipPath == null) return;
     }
 
     canvas.save();
-    if (clipPath != null) canvas.clipPath(clipPath);
+    if (clipPath != null) {
+      // Expand the clip path slightly so brush paint reaches the outline
+      // edge — the exact path boundary leaves ~0.5px gaps from antialiasing,
+      // making narrow regions look unfillable. A small scale transform lets
+      // strokes color right up to the border without bleeding into adjacent
+      // regions.
+      final bounds = clipPath.getBounds();
+      if (bounds.isFinite && bounds.width > 0 && bounds.height > 0) {
+        final cx = bounds.center.dx;
+        final cy = bounds.center.dy;
+        final scale = 1.04; // 4% expansion (~2–4px on typical regions)
+        final m = Matrix4.identity()
+          ..translateByDouble(cx, cy, 0, 1)
+          ..scaleByDouble(scale, scale, 1, 1)
+          ..translateByDouble(-cx, -cy, 0, 1);
+        canvas.clipPath(clipPath.transform(m.storage));
+      } else {
+        canvas.clipPath(clipPath);
+      }
+    }
 
     if (canvasPoints.length == 1) {
       canvas.drawCircle(canvasPoints.first, canvasWidth / 2, paint);
+    } else if (stroke.isShape) {
+      // Recognized primitive: even-width path through the clean points, no
+      // hand-drawn taper. `closed` joins the last point back to the first.
+      canvas.drawPath(
+        Path()..addPolygon(canvasPoints, stroke.closed),
+        paint,
+      );
     } else {
       _drawTaperedSmoothPath(canvas, canvasPoints, paint, canvasWidth);
     }
@@ -126,10 +266,11 @@ class Painter extends CustomPainter {
     canvas.restore();
   }
 
-  /// Walks [points] and emits a single Path with cubic curves through every
-  /// sample (Catmull-Rom-to-Bezier). The first and last ~3 segments are
-  /// drawn separately at progressively narrower widths to give a mild
-  /// hand-drawn taper.
+  /// Walks [points] and emits a single C1-continuous Path with cubic Bezier
+  /// curves through every sample (Catmull-Rom-to-Bezier conversion with
+  /// standard tension 1/6).  Unlike the previous per-segment approach, the
+  /// entire stroke is a single [drawPath] call — no seam artifacts at segment
+  /// boundaries.
   void _drawTaperedSmoothPath(
     Canvas canvas,
     List<Offset> points,
@@ -137,64 +278,52 @@ class Painter extends CustomPainter {
     double width,
   ) {
     if (points.length == 2) {
-      canvas.drawLine(points[0], points[1], basePaint);
+      canvas.drawLine(points[0], points[1], _makePaint(basePaint, width));
       return;
     }
 
-    // 0 = full width, 1 = full width; segments inside taperHead/Tail get
-    // scaled down to this fraction of the width.
-    const taperHead = 3;
-    const taperTail = 3;
-    const minTaperFactor = 0.6;
+    final path = _buildSmoothPath(points);
+    canvas.drawPath(path, _makePaint(basePaint, width));
+  }
 
+  /// Catmull-Rom → Bezier for every span, building one continuous path.
+  Path _buildSmoothPath(List<Offset> points) {
     final n = points.length;
-    for (var i = 0; i < n - 1; i++) {
-      double factor = 1.0;
-      if (i < taperHead) {
-        factor = minTaperFactor +
-            (1.0 - minTaperFactor) * ((i + 1) / (taperHead + 1));
-      } else if (i >= n - 1 - taperTail) {
-        final remaining = n - 1 - i; // 1..taperTail
-        factor = minTaperFactor +
-            (1.0 - minTaperFactor) * (remaining / (taperTail + 1));
-      }
+    final path = Path()..moveTo(points[0].dx, points[0].dy);
 
-      final segmentPaint = Paint()
-        ..color = basePaint.color
-        ..strokeWidth = width * factor
-        ..strokeCap = basePaint.strokeCap
-        ..strokeJoin = StrokeJoin.round
-        ..style = PaintingStyle.stroke
-        ..isAntiAlias = basePaint.isAntiAlias
-        ..maskFilter = basePaint.maskFilter
-        ..blendMode = basePaint.blendMode;
-
-      canvas.drawPath(_segmentSmoothPath(points, i), segmentPaint);
+    if (n == 2) {
+      path.lineTo(points[1].dx, points[1].dy);
+      return path;
     }
+
+    for (var i = 0; i < n - 1; i++) {
+      final p0 = i > 0 ? points[i - 1] : points[i];
+      final p1 = points[i];
+      final p2 = points[i + 1];
+      final p3 = i + 2 < n ? points[i + 2] : p2;
+
+      final c1 = Offset(
+        p1.dx + (p2.dx - p0.dx) / 6,
+        p1.dy + (p2.dy - p0.dy) / 6,
+      );
+      final c2 = Offset(
+        p2.dx - (p3.dx - p1.dx) / 6,
+        p2.dy - (p3.dy - p1.dy) / 6,
+      );
+      path.cubicTo(c1.dx, c1.dy, c2.dx, c2.dy, p2.dx, p2.dy);
+    }
+    return path;
   }
 
-  /// One smoothed sub-path covering segment index `i` (from `points[i]` to
-  /// `points[i+1]`), with control points borrowed from neighbors so the
-  /// curve stays C1-continuous with adjacent segments.
-  Path _segmentSmoothPath(List<Offset> points, int i) {
-    final p0 = i > 0 ? points[i - 1] : points[i];
-    final p1 = points[i];
-    final p2 = points[i + 1];
-    final p3 = i + 2 < points.length ? points[i + 2] : p2;
-
-    final c1 = Offset(
-      p1.dx + (p2.dx - p0.dx) / 6,
-      p1.dy + (p2.dy - p0.dy) / 6,
-    );
-    final c2 = Offset(
-      p2.dx - (p3.dx - p1.dx) / 6,
-      p2.dy - (p3.dy - p1.dy) / 6,
-    );
-
-    return Path()
-      ..moveTo(p1.dx, p1.dy)
-      ..cubicTo(c1.dx, c1.dy, c2.dx, c2.dy, p2.dx, p2.dy);
-  }
+  Paint _makePaint(Paint source, double width) => Paint()
+    ..color = source.color
+    ..strokeWidth = width
+    ..strokeCap = source.strokeCap
+    ..strokeJoin = StrokeJoin.round
+    ..style = PaintingStyle.stroke
+    ..isAntiAlias = source.isAntiAlias
+    ..maskFilter = source.maskFilter
+    ..blendMode = source.blendMode;
 
   /// Paint configuration for a brush style. Width is in canvas-space.
   Paint _paintFor(
@@ -254,5 +383,8 @@ class Painter extends CustomPainter {
   bool shouldRepaint(covariant Painter oldDelegate) =>
       oldDelegate.actions != actions ||
       oldDelegate.currentStroke != currentStroke ||
-      oldDelegate.template != template;
+      oldDelegate.template != template ||
+      oldDelegate.paintMode != paintMode ||
+      oldDelegate.backgroundImage != backgroundImage ||
+      oldDelegate.selectionRect != selectionRect;
 }

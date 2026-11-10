@@ -80,4 +80,12 @@ abstract class DrawingTemplate {
   /// (e.g. [ColoringPageTemplate], which can skip the per-frame `saveLayer`
   /// + multiply blend used to overlay user strokes) override this.
   void paintPreview(Canvas canvas, Size size) => paintOutline(canvas, size);
+
+  /// Renders the artwork as a faint tracing guide *underneath* the user's
+  /// strokes (PaintMode.draw). Unlike [paintOutline] this is drawn before the
+  /// stroke layer so freehand strokes sit clearly on top of it.
+  ///
+  /// Defaults to [paintPreview]; subclasses override to control the opacity
+  /// (see [ColoringPageTemplate]).
+  void paintGuide(Canvas canvas, Size size) => paintPreview(canvas, size);
 }

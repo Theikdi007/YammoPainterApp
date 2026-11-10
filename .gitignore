@@ -4,6 +4,11 @@
 *.pyc
 *.swp
 .DS_Store
+
+# Backend secrets — keep .env.example, never commit the real .env
+.env
+*.env
+!.env.example
 .atom/
 .build/
 .buildlog/
@@ -43,3 +48,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Signing keys — never commit
+/android/key.properties
+/android/app/release-key.jks
+/android/app/*.jks
+/android/app/*.keystore

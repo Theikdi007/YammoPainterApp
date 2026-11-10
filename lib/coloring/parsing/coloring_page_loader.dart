@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui' show Path;
 
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_svg/flutter_svg.dart'
@@ -94,12 +95,36 @@ Future<ColoringPage> loadFromUrl(String url, {http.Client? client}) async {
         'GET $url returned HTTP ${response.statusCode}',
       );
     }
-    final manifest = await _decode(
-      url,
-      response.body,
-      contentType: response.headers['content-type'],
-    );
-    return loadFromManifest(manifest);
+    final contentType = response.headers['content-type'];
+    // Pre-render the SVG so the painted outline is pixel-faithful (same as the
+    // asset path), falling back to parsed outline strokes if rendering fails.
+    PictureInfo? pictureInfo;
+    final lower = url.toLowerCase().split('?').first;
+    final isSvg = (contentType?.contains('svg') ?? false) || lower.endsWith('.svg');
+    if (isSvg) {
+      pictureInfo = await _tryLoadSvgPicture(SvgStringLoader(response.body), url);
+    }
+    try {
+      final manifest =
+          await _decode(url, response.body, contentType: contentType);
+      return loadFromManifest(manifest, pictureInfo: pictureInfo);
+    } on ColoringParseException {
+      // The custom path parser can't handle this SVG (e.g. unsupported
+      // transforms like translate+scale), but flutter_svg rendered it fine.
+      // Fall back to a *render-only* coloring page: the picture supplies the
+      // outline and there are no vector regions, so the flood-based bucket fill
+      // and region-bounded brush still color it cleanly. Without a picture we
+      // can't render anything, so rethrow.
+      if (pictureInfo != null) {
+        return ColoringPage(
+          viewBox: pictureInfo.size,
+          regions: const <Path>[],
+          outline: const <Path>[],
+          pictureInfo: pictureInfo,
+        );
+      }
+      rethrow;
+    }
   } finally {
     if (client == null) c.close();
   }

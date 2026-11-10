@@ -1,11 +1,11 @@
 {
-    "name": "yammopatinerapp",
-    "short_name": "yammopatinerapp",
+    "name": "Panda Paint",
+    "short_name": "Panda Paint",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Panda Paint — a freehand drawing app.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

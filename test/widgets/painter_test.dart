@@ -2,12 +2,12 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:yammopatinerapp/coloring/coloring_page.dart';
-import 'package:yammopatinerapp/coloring/coloring_page_template.dart';
-import 'package:yammopatinerapp/coloring/parsing/svg_path_parser.dart';
-import 'package:yammopatinerapp/models/drawing_tool.dart';
-import 'package:yammopatinerapp/models/stroke.dart';
-import 'package:yammopatinerapp/widgets/painter.dart';
+import 'package:pandapainterapp/coloring/coloring_page.dart';
+import 'package:pandapainterapp/coloring/coloring_page_template.dart';
+import 'package:pandapainterapp/coloring/parsing/svg_path_parser.dart';
+import 'package:pandapainterapp/models/drawing_tool.dart';
+import 'package:pandapainterapp/models/stroke.dart';
+import 'package:pandapainterapp/widgets/painter.dart';
 
 ColoringPageTemplate _template(Size viewBox) {
   return ColoringPageTemplate(
